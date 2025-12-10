@@ -22,8 +22,9 @@ const Jeu = () => {
   const [positionJoueur, setPositionJoueur] = useState(niveau?.start || { row: 0, col: 0 }); 
   const [nombreTuilesRevelees, setNombreTuilesRevelees] = useState(1);
   const [heureDebut] = useState(Date.now());
-  const [statutJeu, setStatutJeu] = useState('playing');
+  const [statutJeu, setStatutJeu] = useState('playing'); 
   const [tempsActuel, setTempsActuel] = useState(0);
+  const [messageTemporaire, setMessageTemporaire] = useState(null); 
 
   useEffect(() => {
     if (!niveau || (niveau.id && niveau.id.toString() !== idNiveau)) {
@@ -38,11 +39,12 @@ const Jeu = () => {
       setTuilesRevelees(tuilesInitiales);
       setNombreTuilesRevelees(1);
       setStatutJeu('playing');
+      setMessageTemporaire(null);
     }
   }, [niveau]);
 
   useEffect(() => {
-    if (statutJeu !== 'playing') return;
+    if (statutJeu !== 'playing') return; 
     const timer = setInterval(() => {
       setTempsActuel(Math.floor((Date.now() - heureDebut) / 1000));
     }, 1000);
@@ -50,58 +52,80 @@ const Jeu = () => {
   }, [statutJeu, heureDebut]);
 
   const handleDeplacement = useCallback((nouvellePos) => {
-  if (!niveau || statutJeu !== 'playing') return;
-  const { row: ligne, col: colonne } = nouvellePos;
-  if (ligne < 0 || ligne >= niveau.rows || colonne < 0 || colonne >= niveau.cols) return;
-  if (!estAdjacent(positionJoueur, nouvellePos)) return;
+    if (!niveau || statutJeu !== 'playing') return; 
+    
+    const { row: ligne, col: colonne } = nouvellePos;
+    if (ligne < 0 || ligne >= niveau.rows || colonne < 0 || colonne >= niveau.cols) return;
+    if (!estAdjacent(positionJoueur, nouvellePos)) return;
 
-  const cell = niveau.grid[ligne][colonne];
-  const temps = Math.floor((Date.now() - heureDebut) / 1000);
+    const cell = niveau.grid[ligne][colonne];
+    const temps = Math.floor((Date.now() - heureDebut) / 1000);
+    const estNouvelleTuile = !tuilesRevelees[ligne][colonne];
+    const nombreFinal = estNouvelleTuile ? nombreTuilesRevelees + 1 : nombreTuilesRevelees;
 
-  // ✅ NOUVEAU : Calculer le nombre de tuiles AVANT tout changement d'état
-  const estNouvelleTuile = !tuilesRevelees[ligne][colonne];
-  const nombreFinal = estNouvelleTuile ? nombreTuilesRevelees + 1 : nombreTuilesRevelees;
+    if (verifDefaite(cell)) {
+      const messageDefaite = '⚠️ Aïe ! Vous avez heurté un mur ! Le jeu se termine...';
+      const score = calculScore(nombreFinal, temps, 'defeat');
+      
+      setStatutJeu('paused'); 
+      setMessageTemporaire({
+        type: 'defeat',
+        message: messageDefaite
+      });
+      
+      setTimeout(() => {
+        setStatutJeu('ended'); 
+        setMessageTemporaire(null); 
+        
+        finirPartie({ 
+          status: 'defeat',
+          reason: 'Tu as heurté un mur !',
+          tilesRevealed: nombreFinal,
+          time: temps,
+          score: score,
+          levelId: niveau.id
+        });
+      }, 3000); 
+      
+      return;
+    }
 
-  // Vérifier défaite AVANT de bouger
-  if (verifDefaite(cell)) {
-    const score = calculScore(nombreFinal, temps, 'defeat'); // ✅ Utilise nombreFinal
-    setStatutJeu('ended');
-    finirPartie({ 
-      status: 'defeat',
-      reason: 'Tu as heurté un mur !',
-      tilesRevealed: nombreFinal, // ✅ Utilise nombreFinal
-      time: temps,
-      score: score,
-      levelId: niveau.id
-    });
-    return;
-  }
+    if (estNouvelleTuile) {
+      const nouvellesTuiles = tuilesRevelees.map(l => [...l]);
+      nouvellesTuiles[ligne][colonne] = true;
+      setTuilesRevelees(nouvellesTuiles);
+      setNombreTuilesRevelees(nombreFinal);
+    }
 
-  // Révéler la nouvelle tuile si nécessaire
-  if (estNouvelleTuile) {
-    const nouvellesTuiles = tuilesRevelees.map(l => [...l]);
-    nouvellesTuiles[ligne][colonne] = true;
-    setTuilesRevelees(nouvellesTuiles);
-    setNombreTuilesRevelees(nombreFinal); // ✅ Utilise nombreFinal au lieu de prev => prev + 1
-  }
+    setPositionJoueur(nouvellePos);
 
-  // Déplacer le joueur
-  setPositionJoueur(nouvellePos);
+    if (verifVictoire(cell)) {
+      const messageVictoire = '🎉 Victoire ! Vous avez trouvé la sortie !';
+      const score = calculScore(nombreFinal, temps, 'victory');
+      
+      setStatutJeu('paused');
+      setMessageTemporaire({
+        type: 'victory',
+        message: messageVictoire
+      });
 
-  // Vérifier victoire APRÈS avoir bougé
-  if (verifVictoire(cell)) {
-    const score = calculScore(nombreFinal, temps, 'victory'); // ✅ Utilise nombreFinal
-    setStatutJeu('ended');
-    finirPartie({
-      status: 'victory',
-      reason: '🎉 Tu as trouvé la sortie !',
-      tilesRevealed: nombreFinal, // ✅ Utilise nombreFinal
-      time: temps,
-      score: score,
-      levelId: niveau.id
-    });
-  }
-}, [niveau, statutJeu, positionJoueur, tuilesRevelees, nombreTuilesRevelees, heureDebut, finirPartie]);
+      setTimeout(() => {
+        setStatutJeu('ended');
+        setMessageTemporaire(null);
+
+        finirPartie({
+          status: 'victory',
+          reason: '🎉 Tu as trouvé la sortie !',
+          tilesRevealed: nombreFinal,
+          time: temps,
+          score: score,
+          levelId: niveau.id
+        });
+      }, 3000); 
+      
+      return;
+    }
+  }, [niveau, statutJeu, positionJoueur, tuilesRevelees, nombreTuilesRevelees, heureDebut, finirPartie]);
 
   const handleClicTuile = (ligne, colonne) => {
     handleDeplacement({ row: ligne, col: colonne });
@@ -109,7 +133,7 @@ const Jeu = () => {
 
   useEffect(() => {
     const handleTouche = (event) => {
-      if (statutJeu !== 'playing') return;
+      if (statutJeu !== 'playing') return; 
       const touchesAutorisees = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
       
       if (touchesAutorisees.includes(event.key)) {
@@ -133,10 +157,15 @@ const Jeu = () => {
       </div>
     );
   }
+  
+  const notificationStyle = messageTemporaire?.type === 'defeat' 
+    ? "bg-red-900/80 border border-red-700 text-red-200 animate-pulse"
+    : "bg-green-800/80 border border-green-700 text-green-200 animate-bounce";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-950 to-purple-900 p-6">
       <div className="max-w-4xl mx-auto space-y-6">
+        
         <header className="bg-gray-800/70 backdrop-blur-md p-5 rounded-xl flex items-center justify-between shadow-lg border border-gray-700">
           <div>
             <h2 className="text-3xl font-bold text-yellow-400 drop-shadow-lg">
@@ -151,6 +180,7 @@ const Jeu = () => {
             Accueil
           </button>
         </header>
+        
         <div className="bg-gray-800/70 backdrop-blur-md p-5 rounded-xl grid grid-cols-3 gap-6 text-center shadow-lg border border-gray-700">
           <div>
             <p className="text-gray-400 text-sm">Joueur</p>
@@ -171,16 +201,26 @@ const Jeu = () => {
             <p className="text-white font-bold text-lg">{tempsActuel}s</p>
           </div>
         </div>
+
+        {messageTemporaire && (
+          <div className={`p-4 rounded-xl text-center font-bold text-xl shadow-lg ${notificationStyle}`}>
+            {messageTemporaire.message}
+          </div>
+        )}
+
         <Grille
           level={niveau}
           revealedTiles={tuilesRevelees}
           playerPos={positionJoueur}
           onTileClick={handleClicTuile}
         />
-        <div className="mt-4 bg-blue-800/40 border border-blue-700 p-4 rounded-xl text-center text-blue-200 shadow-md">
-          <span className="font-semibold">Astuce :</span> Clique sur les
-          tuiles à côté de toi ou utilise les flèches pour explorer !
-        </div>
+        
+        {!messageTemporaire && (
+          <div className="mt-4 bg-blue-800/40 border border-blue-700 p-4 rounded-xl text-center text-blue-200 shadow-md">
+            <span className="font-semibold">Astuce :</span> Clique sur les
+            tuiles à côté de toi ou utilise les flèches pour explorer !
+          </div>
+        )}
       </div>
       
     </div>
