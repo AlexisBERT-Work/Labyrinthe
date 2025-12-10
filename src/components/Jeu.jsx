@@ -50,56 +50,58 @@ const Jeu = () => {
   }, [statutJeu, heureDebut]);
 
   const handleDeplacement = useCallback((nouvellePos) => {
-    if (!niveau || statutJeu !== 'playing') return;
-    const { row: ligne, col: colonne } = nouvellePos;
-    if (ligne < 0 || ligne >= niveau.rows || colonne < 0 || colonne >= niveau.cols) return;
-    if (!estAdjacent(positionJoueur, nouvellePos)) return;
+  if (!niveau || statutJeu !== 'playing') return;
+  const { row: ligne, col: colonne } = nouvellePos;
+  if (ligne < 0 || ligne >= niveau.rows || colonne < 0 || colonne >= niveau.cols) return;
+  if (!estAdjacent(positionJoueur, nouvellePos)) return;
 
-    const cell = niveau.grid[ligne][colonne];
+  const cell = niveau.grid[ligne][colonne];
+  const temps = Math.floor((Date.now() - heureDebut) / 1000);
 
-    if (verifDefaite(cell)) {
-      const temps = Math.floor((Date.now() - heureDebut) / 1000);
-      const score = calculScore(nombreTuilesRevelees, temps, 'defeat');
-      setStatutJeu('ended');
-      finirPartie({ 
-        status: 'defeat',
-        reason: 'Tu as heurté un mur !',
-        tilesRevealed: nombreTuilesRevelees,
-        time: temps,
-        score: score,
-        levelId: niveau.id
-      });
-      return;
-    }
+  // ✅ NOUVEAU : Calculer le nombre de tuiles AVANT tout changement d'état
+  const estNouvelleTuile = !tuilesRevelees[ligne][colonne];
+  const nombreFinal = estNouvelleTuile ? nombreTuilesRevelees + 1 : nombreTuilesRevelees;
 
-    if (!tuilesRevelees[ligne][colonne]) {
-      const nouvellesTuiles = tuilesRevelees.map(l => [...l]);
-      nouvellesTuiles[ligne][colonne] = true;
-      setTuilesRevelees(nouvellesTuiles);
-      setNombreTuilesRevelees(prev => prev + 1);
-    }
+  // Vérifier défaite AVANT de bouger
+  if (verifDefaite(cell)) {
+    const score = calculScore(nombreFinal, temps, 'defeat'); // ✅ Utilise nombreFinal
+    setStatutJeu('ended');
+    finirPartie({ 
+      status: 'defeat',
+      reason: 'Tu as heurté un mur !',
+      tilesRevealed: nombreFinal, // ✅ Utilise nombreFinal
+      time: temps,
+      score: score,
+      levelId: niveau.id
+    });
+    return;
+  }
 
-    setPositionJoueur(nouvellePos);
+  // Révéler la nouvelle tuile si nécessaire
+  if (estNouvelleTuile) {
+    const nouvellesTuiles = tuilesRevelees.map(l => [...l]);
+    nouvellesTuiles[ligne][colonne] = true;
+    setTuilesRevelees(nouvellesTuiles);
+    setNombreTuilesRevelees(nombreFinal); // ✅ Utilise nombreFinal au lieu de prev => prev + 1
+  }
 
-    if (verifVictoire(cell)) {
-      const temps = Math.floor((Date.now() - heureDebut) / 1000);
-      const nombreFinal = tuilesRevelees[ligne][colonne] 
-        ? nombreTuilesRevelees 
-        : nombreTuilesRevelees + 1;
-      const score = calculScore(nombreFinal, temps, 'victory');
+  // Déplacer le joueur
+  setPositionJoueur(nouvellePos);
 
-      setStatutJeu('ended');
-      
-      finirPartie({
-        status: 'victory',
-        reason: '🎉 Tu as trouvé la sortie !',
-        tilesRevealed: nombreFinal,
-        time: temps,
-        score: score,
-        levelId: niveau.id
-      });
-    }
-  }, [niveau, statutJeu, positionJoueur, tuilesRevelees, nombreTuilesRevelees, heureDebut, finirPartie]);
+  // Vérifier victoire APRÈS avoir bougé
+  if (verifVictoire(cell)) {
+    const score = calculScore(nombreFinal, temps, 'victory'); // ✅ Utilise nombreFinal
+    setStatutJeu('ended');
+    finirPartie({
+      status: 'victory',
+      reason: '🎉 Tu as trouvé la sortie !',
+      tilesRevealed: nombreFinal, // ✅ Utilise nombreFinal
+      time: temps,
+      score: score,
+      levelId: niveau.id
+    });
+  }
+}, [niveau, statutJeu, positionJoueur, tuilesRevelees, nombreTuilesRevelees, heureDebut, finirPartie]);
 
   const handleClicTuile = (ligne, colonne) => {
     handleDeplacement({ row: ligne, col: colonne });
@@ -180,6 +182,7 @@ const Jeu = () => {
           tuiles à côté de toi ou utilise les flèches pour explorer !
         </div>
       </div>
+      
     </div>
   );
 };

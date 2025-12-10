@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { replace, useNavigate } from 'react-router-dom';
 
 // ===== CRÉATION DU CONTEXTE =====
 const JeuContext = createContext();
@@ -19,13 +19,21 @@ export function JeuProvider({ children }) {
 
   const navigate = useNavigate();
 
-  const retournerAccueil = useCallback(() => {
-    setNomJoueur('');
-    setNiveau(null);
-    setResultatPartie(null);
-    setErreur(null);
-    navigate('/');
-  }, [navigate]);
+  const retournerAccueil = () => {
+  resetApp();
+  navigate('/', { replace: true });  
+};
+
+const resetApp = () => {
+  sessionStorage.clear();
+  localStorage.clear();
+
+  setNomJoueur('');
+  setNiveau(null);
+  setResultatPartie(null);
+  setErreur(null);
+};
+
 
   const chargerNiveau = async (idNiveau = 1) => {
     setChargement(true);
@@ -66,8 +74,8 @@ export function JeuProvider({ children }) {
   };
 
   const finirPartie = (resultat) => {
-    navigate('/classement');
     setResultatPartie(resultat);
+    navigate('/score');
   };
 
   const rejouer = () => {

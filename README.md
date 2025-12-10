@@ -20,3 +20,23 @@ If you are developing a production application, we recommend using TypeScript wi
 
 ## Architecture :
 
+JeuLabyrinthe/
+│
+├── public/
+│   ├── vite.svg
+│
+├── src/
+│   ├── API/
+|   |   ├── README.md
+|   |   └── server.js
+│   ├── components/
+│   ├── context/
+│   └── utils/
+│   ├── App.css
+|   ├── App.jsx
+│   └── main.jsx
+│
+├── index.html
+├── .gitignore
+├── package.json
+└── README.md
