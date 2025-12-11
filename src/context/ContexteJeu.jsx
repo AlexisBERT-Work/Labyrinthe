@@ -1,39 +1,36 @@
-import React, { createContext, useState, useContext, useCallback } from 'react';
+import React, { createContext, useState, useContext } from 'react';
 import { replace, useNavigate } from 'react-router-dom';
 
-// ===== CRÉATION DU CONTEXTE =====
 const JeuContext = createContext();
 
-// ===== HOOK PERSONNALISÉ =====
 export const useJeu = () => useContext(JeuContext);
 
-// ===== PROVIDER =====
 export function JeuProvider({ children }) {
 
   const [nomJoueur, setNomJoueur] = useState('');
   const [niveau, setNiveau] = useState(null);
   const [joueurPos, setJoueurPos] = useState(null);
   const [resultatPartie, setResultatPartie] = useState(null);
+  const [classement, setClassement] = useState(null); 
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState(null);
 
   const navigate = useNavigate();
 
   const retournerAccueil = () => {
-  resetApp();
-  navigate('/', { replace: true });  
-};
+    resetApp();
+    navigate('/', { replace: true });
+  };
 
-const resetApp = () => {
-  sessionStorage.clear();
-  localStorage.clear();
-
-  setNomJoueur('');
-  setNiveau(null);
-  setResultatPartie(null);
-  setErreur(null);
-};
-
+  const resetApp = () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    setNomJoueur('');
+    setNiveau(null);
+    setResultatPartie(null);
+    setClassement(null);
+    setErreur(null);
+  };
 
   const chargerNiveau = async (idNiveau = 1) => {
     setChargement(true);
@@ -45,13 +42,40 @@ const resetApp = () => {
       if (!reponse.ok) throw new Error('Erreur lors du chargement du niveau');
 
       const donnees = await reponse.json();
-
       setNiveau(donnees);
       navigate(`/jeu/${donnees.id}`);
 
     } catch (err) {
       console.error('Erreur de chargement :', err);
       setErreur("Impossible de charger le niveau. Vérifie l'API.");
+    } finally {
+      setChargement(false);
+    }
+  };
+  
+  const chargerClassement = async (idNiveau = null, limite = 10) => {
+    setChargement(true);
+    setErreur(null);
+    setClassement(null);
+
+    let url = 'http://localhost:4000/api/highscores';
+    const params = [];
+
+    if (idNiveau !== null) params.push(`levelId=${idNiveau}`);
+    params.push(`limit=${limite}`);
+    if (params.length > 0) url += `?${params.join('&')}`;
+
+    try {
+      const reponse = await fetch(url);
+
+      if (!reponse.ok) throw new Error('Erreur lors du chargement du classement');
+
+      const donnees = await reponse.json();
+      setClassement(donnees);
+
+    } catch (err) {
+      console.error('Erreur de chargement du classement :', err);
+      setErreur("Impossible de charger le classement. Vérifie l'API.");
     } finally {
       setChargement(false);
     }
@@ -75,6 +99,7 @@ const resetApp = () => {
 
   const finirPartie = (resultat) => {
     setResultatPartie(resultat);
+    setClassement(null);
     navigate('/score');
   };
 
@@ -86,8 +111,10 @@ const resetApp = () => {
     }
   };
 
-  const afficherClassement = () => {
-      navigate('/');
+  const afficherClassement = (idNiveau = null) => {
+    setResultatPartie(null);
+    chargerClassement(idNiveau);
+    navigate('/score');
   };
 
   const valeursContexte = {
@@ -97,6 +124,7 @@ const resetApp = () => {
     joueurPos,
     setJoueurPos,
     resultatPartie,
+    classement,
     chargement,
     erreur,
     demarrerJeu,
@@ -106,7 +134,8 @@ const resetApp = () => {
     rejouer,
     retournerAccueil,
     chargerNiveau,
-    afficherClassement
+    afficherClassement,
+    chargerClassement
   };
 
   return (
